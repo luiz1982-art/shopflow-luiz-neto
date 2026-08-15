@@ -1,12 +1,10 @@
-version: '3.8'
-
 services:
   rabbitmq:
     image: rabbitmq:3-management
     container_name: shopflow-rabbitmq
     ports:
-      - "5672:5672"    # Porta do protocolo AMQP
-      - "15672:15672"  # Porta do painel de controle (Management UI)
+      - "5672:5672"
+      - "15672:15672"
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
@@ -34,3 +32,76 @@ services:
     environment:
       MONGO_INITDB_ROOT_USERNAME: root
       MONGO_INITDB_ROOT_PASSWORD: rootpassword
+
+  # --- MICROSSERVIÇOS ---
+
+  pedido:
+    build: ./servicos/servicos/pedido
+    container_name: shopflow-pedido
+    ports:
+      - "8000:8000"
+    environment:
+      - MONGO_URI=mongodb://root:rootpassword@mongodb:27017/shopflow?authSource=admin
+      - RABBITMQ_HOST=rabbitmq
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      mongodb:
+        condition: service_started
+
+  pagamento:
+    build: ./servicos/servicos/pagamento
+    container_name: shopflow-pagamento
+    working_dir: /app/app
+    ports:
+      - "8001:8000"
+    environment:
+      - POSTGRES_HOST=postgres
+      - POSTGRES_DB=shopflow
+      - POSTGRES_USER=shopflow
+      - POSTGRES_PASSWORD=shopflow_pass
+      - RABBITMQ_HOST=rabbitmq
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      postgres:
+        condition: service_started
+
+  logistica:
+    build: ./servicos/servicos/logistica/servicos/logistica
+    container_name: shopflow-logistica
+    working_dir: /app/app
+    ports:
+      - "8002:8000"
+    environment:
+      - POSTGRES_HOST=postgres
+      - POSTGRES_DB=shopflow
+      - POSTGRES_USER=shopflow
+      - POSTGRES_PASSWORD=shopflow_pass
+      - RABBITMQ_HOST=rabbitmq
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      postgres:
+        condition: service_started
+
+  mock-antifraude:
+    build: ./mock
+    container_name: shopflow-mock-antifraude
+    ports:
+      - "8003:8000"
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  dashboard:
+    build: ./dashboard
+    container_name: shopflow-dashboard
+    ports:
+      - "8050:8050"
+    depends_on:
+      - pedido
+      - pagamento
+      - logistica
