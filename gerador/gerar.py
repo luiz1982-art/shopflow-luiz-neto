@@ -24,10 +24,20 @@ def gerar_pedidos(total: int, taxa: float, url: str):
         }
 
         try:
-            response = requests.post(f"{url}/pedidos", json=payload)
-            if response.status_code == 200:
+            # Tenta primeiramente a rota raiz '/'
+            endpoint = f"{url.rstrip('/')}/"
+            response = requests.post(endpoint, json=payload)
+            
+            # Se a rota raiz retornar 404, tenta a rota alternativa '/pedidos'
+            if response.status_code == 404:
+                endpoint = f"{url.rstrip('/')}/pedidos"
+                response = requests.post(endpoint, json=payload)
+
+            if response.status_code in [200, 201]:
                 data = response.json()
-                print(f"[{i}/{total}] Pedido Criado: ID={data.get('pedido_id')} | Correlation={data.get('correlation_id')}")
+                pedido_id = data.get('pedido_id') or data.get('id') or 'N/A'
+                correlation_id = data.get('correlation_id') or 'N/A'
+                print(f"[{i}/{total}] Pedido Criado: ID={pedido_id} | Correlation={correlation_id}")
             else:
                 print(f"[{i}/{total}] Falha ao criar pedido: {response.status_code} - {response.text}")
         except Exception as e:
